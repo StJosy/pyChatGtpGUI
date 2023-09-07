@@ -1,0 +1,9 @@
+{
+    "model": "gpt-3.5-turbo",
+    "max_tokens": 256,
+    "temperature": 0.5,
+    "top_p": 1,
+    "frequency_penalty": 0,
+    "presence_penalty": 0,
+    "system_role_content": "You are a scientific advisor. You are talking with a geek programmer who loves smartass jokes!"
+}

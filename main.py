@@ -9,8 +9,10 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QListWidget,
     QTextEdit,
+    QLabel,
 )
 from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt
 import sqlite3
 from pygments import highlight
 from pygments.lexers import get_lexer_by_name
@@ -22,7 +24,7 @@ import openai
 import asyncio
 from qasync import QEventLoop, asyncSlot
 import time
-
+import json
 
 class CodeHighlighter:
     def __init__(self):
@@ -91,7 +93,42 @@ class MyWindow(QMainWindow):
         super().__init__()
 
         self.init_db("catgpt.db")
+        
+        # check Config
+        with open('config.json','r') as config_file:
+            content = config_file.read()
+            config_content = json.loads(content)
 
+            # expected keys:
+            expected_keys = ['model','max_tokens']
+            
+            # by openai recommendation
+            key = os.getenv("OPENAI_API_KEY")
+            if key is None:
+                raise Exception(f"Missing OPENAI_API_KEY")
+            else:
+                openai.api_key = key
+                    
+            
+            if all(key in config_content for key in expected_keys):
+                #
+                if "system_role_content" in config_content.keys():
+                    self.system_role_content = config_content.pop("system_role_content")
+                else:
+                    self.system_role_content=None
+                    
+                self.chatGPT_setting = {
+                    "model":config_content.pop("model"),
+                    "max_tokens":config_content.pop("max_tokens")
+                }
+                
+                for item in config_content :
+                    self.chatGPT_setting[item] = config_content[item]
+            else:
+                raise Exception(f"Missing key(s) {list(set(config_content.keys()) & set(expected_keys))}")
+            
+            print(self.chatGPT_setting)
+                
         self.initUI()
 
         self.highlighter = CodeHighlighter()
@@ -146,15 +183,15 @@ class MyWindow(QMainWindow):
 
         # Left Column
         new_chat = QPushButton("Create", objectName="createButton")
-        # new_chat.setStyleSheet(u"background-color: rgb(32, 33, 35);color:#fff;border-color: rgb(255, 255, 255);")
         left_col_layout.addWidget(new_chat)
         list_widget = QListWidget()
-        # list_widget.setStyleSheet(u"background-color: rgb(32, 33, 35);color:#fff")
         list_widget.addItems(["Input Field Height", "Using asyncio with PyQt5"])
         left_col_layout.addWidget(list_widget)
 
         # Right Column
-        # right_col_layout.addWidget(QLabel("Info Banner"))
+        label = QLabel("Info")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        right_col_layout.addWidget(label)
         self.multi_line_list = QWebEngineView()
         self.multi_line_list.setFont(sansFont)
         # multi_line_list.setStyleSheet(u"background-color: rgb(32, 33, 35);color:#fff")
@@ -237,12 +274,10 @@ class MyWindow(QMainWindow):
         self.con.commit()
 
     async def chat_with_openai(self, prompt, id=None):
-        messages = [
-            {
-                "role": "system",
-                "content": "You are a scientific advisor. You are talking with a geek programmer who loves smartass jokes!",
-            },
-        ]
+        
+        messages = []
+        if self.system_role_content:
+            messages.append({"role": "system", "content":self.system_role_content })
         
         if id is not None:
             print('id is not None')
@@ -262,11 +297,11 @@ class MyWindow(QMainWindow):
         return (response["id"], response["choices"][0]["message"]["content"])
 
     def call_openai(self, messages):
+        setting = self.chatGPT_setting.copy()
+        setting["messages"]  = messages
+        
         return openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            # model="gpt-4",
-            messages=messages,
-            max_tokens=1024,
+           **setting
         )
 
     def _coverstateton(self):
@@ -334,18 +369,21 @@ def main():
     app.setStyle("Fusion")
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
-
-    window = MyWindow()
+    try:
+        window = MyWindow()
+    except FileNotFoundError as e:
+        print(f"Error: {e}. Make sure 'config.json' exists.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        sys.exit(1)
     window.show()
 
     with loop:
         sys.exit(loop.run_forever())
-        # sys.exit(app.exec())
 
 
 if __name__ == "__main__":
-    # by openai recommendation
-    openai.api_key = os.getenv("OPENAI_API_KEY")
     main()
 
 
