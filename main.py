@@ -291,9 +291,10 @@ class MyWindow(QMainWindow):
         # Remove the selected items from the list widget
         for item in selectedItems:
             self.list_widget.takeItem(self.list_widget.row(item))
+            self.reset_chat(item.text())
 
         self.reset()
-        self.reset_chat()
+        
 
     def customContextMenuRequested(self, pos):
         # Get the item at the clicked position
