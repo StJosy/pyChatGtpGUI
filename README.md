@@ -40,6 +40,19 @@ This project is a PyQt6-based chat application integrated with OpenAI's GPT mode
 pip install PyQt6 pygments openai qasync PyQtWebEngine
 ```
 
+**Run**:
+You have to set OPENAI_API_KEY  like:
+```bash
+set OPENAI_API_KEY=your_secret key
+```
+OR
+```bash
+export OPENAI_API_KEY=your_secret key
+```
+ 
+
+
+
 **License**:
 
 This project is open-source and is available under the MIT License.
