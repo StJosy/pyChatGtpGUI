@@ -35,6 +35,10 @@ This project is a PyQt6-based chat application integrated with OpenAI's GPT mode
     "system_role_content": "You are a scientific advisor. You are talking with a geek programmer who loves smartass jokes!"
 }
 ```
+**Installation**:
+```bash
+pip install PyQt6 pygments openai qasync PyQtWebEngine
+```
 
 **License**:
 
