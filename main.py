@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
+    QMessageBox,
 )
 from PyQt6.QtGui import QFont, QAction
 from PyQt6.QtCore import Qt, QTimer
@@ -222,7 +223,7 @@ class MyWindow(QMainWindow):
 
         inline_layout = QHBoxLayout()
 
-        label = QLabel("Save")
+        label = QLabel("Thread name:")
         inline_layout.addWidget(label)
 
         # Add a text input (single line)
@@ -284,17 +285,19 @@ class MyWindow(QMainWindow):
         layout.addLayout(right_col_layout, 80)
 
     def list_onDelete(self):
-        # Get the selected items
-        print("delete")
-        selectedItems = self.list_widget.selectedItems()
-
-        # Remove the selected items from the list widget
-        for item in selectedItems:
-            self.list_widget.takeItem(self.list_widget.row(item))
-            self.reset_chat(item.text())
-
-        self.reset()
+        reply = QMessageBox.question(
+            self, "Confirmation", "Are you sure you want to proceed?"
+        )
         
+        if reply == QMessageBox.StandardButton.Yes:
+            selectedItems = self.list_widget.selectedItems()
+
+            # Remove the selected items from the list widget
+            for item in selectedItems:
+                self.list_widget.takeItem(self.list_widget.row(item))
+                self.reset_chat(item.text())
+
+            self.reset()
 
     def customContextMenuRequested(self, pos):
         # Get the item at the clicked position
@@ -330,21 +333,42 @@ class MyWindow(QMainWindow):
 
         print("load_conversation", self.current_chat_gpt_id)
 
-    def save(self):
+    def save(self) -> None:
+        """
+        Save current thread to database and add to list
+        """
         title = self.save_input.text()
-        try:
-            self.cursor.execute(
-                "UPDATE thread SET title = ? WHERE chat_gpt_id = ?",
-                (title, self.current_chat_gpt_id),
-            )
-        except Exception as e:
-            print(e)
-            self.con.set_trace_callback(print)
-        self.con.commit()
 
-        self.list_widget.addItem(title)
+        if title.strip() == "":
+            QMessageBox.warning(self, "Warning", "Empty Value")
+            return
+
+        res = self.cursor.execute(
+            "SELECT count(*) from thread WHERE title = ?", (title,)
+        )
+
+        if res.fetchone()[0] != 0:
+            QMessageBox.warning(self, "Warning", "Name must be unique")
+            return
+
+        reply = QMessageBox.question(
+            self, "Confirmation", "Are you sure you want to proceed?"
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                self.cursor.execute(
+                    "UPDATE thread SET title = ? WHERE chat_gpt_id = ?",
+                    (title, self.current_chat_gpt_id),
+                )
+                self.con.commit()
+            except Exception as e:
+                print(e)
+                self.con.set_trace_callback(print)
+
+            self.list_widget.addItem(title)
 
     def reset(self) -> None:
+      
         try:
             js_code = "var body = document.body;while (body.firstChild) { body.removeChild(body.firstChild);}"
             self.multi_line_list.page().runJavaScript(js_code)
