@@ -365,6 +365,7 @@ class MyWindow(QMainWindow):
 
         print("load_conversation", self.current_chat_gpt_id)
         
+        #I had a problem with the text display, but even if I resize the window just a little bit, it gets fixed.
         current_width = self.width()
         current_height = self.height()
         
