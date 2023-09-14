@@ -13,9 +13,11 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QMenu,
     QMessageBox,
+    QStyleFactory,
+    QSizePolicy
 )
 from PyQt6.QtGui import QFont, QAction
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, pyqtSlot
 import sqlite3
 from pygments import highlight
 from pygments.lexers import get_lexer_by_name
@@ -28,6 +30,8 @@ import asyncio
 from qasync import QEventLoop, asyncSlot
 import time
 import json
+
+
 
 
 class CodeHighlighter:
@@ -91,9 +95,9 @@ class CodeHighlighter:
 
 
 class MyWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, debug: bool=False):
         self.cwd = Path.cwd()
-
+        self.debug = debug
         super().__init__()
 
         self.init_db("catgpt.sqlite3")
@@ -110,7 +114,7 @@ class MyWindow(QMainWindow):
             # by openai recommendation
             key = os.getenv("OPENAI_API_KEY")
             if key is None:
-                raise Exception(f"Missing OPENAI_API_KEY")
+                raise Exception("Missing OPENAI_API_KEY")
             else:
                 openai.api_key = key
 
@@ -178,13 +182,15 @@ class MyWindow(QMainWindow):
 
     def initUI(self):
         self.setWindowTitle("ChatGPT")
-        self.setGeometry(100, 100, 1024, 600)
+        self.setGeometry(100, 100, 1024, 960)
 
         self.main_widget = QWidget(self)
         self.setCentralWidget(self.main_widget)
         sansFont = QFont("Helvetica", 12)
 
         self.main_widget.setFont(sansFont)
+        
+        
 
         layout = QHBoxLayout()
         self.main_widget.setLayout(layout)
@@ -243,6 +249,12 @@ class MyWindow(QMainWindow):
         inline_layout.addWidget(reset_button)
 
         inline_layout.addSpacing(10)
+        
+        if self.debug:
+            dump_button = QPushButton("Dump")
+            dump_button.clicked.connect(self.dump_html)
+            inline_layout.addWidget(dump_button)
+            inline_layout.addSpacing(10)
 
         # Add a Quit button
         quit_button = QPushButton("Quit")
@@ -250,9 +262,17 @@ class MyWindow(QMainWindow):
         inline_layout.addWidget(quit_button)
 
         right_col_layout.addLayout(inline_layout)
-        self.multi_line_list = QWebEngineView()
-        self.multi_line_list.setFont(sansFont)
-        self.multi_line_list.page().profile().clearHttpCache()
+        self.web_engine_view = QWebEngineView()
+        self.web_engine_view.setFont(sansFont)
+        self.web_engine_view.setZoomFactor(1.0) 
+        
+        self.web_engine_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+      
+       
+        
+        self.web_engine_view.page().profile().clearHttpCache()
+        
+        
 
         template = Path(self.cwd, "templates", "base.html").read_text()
         css = Path(self.cwd, "css", "base.css").read_text()
@@ -267,9 +287,9 @@ class MyWindow(QMainWindow):
         """with open("current_html.html", "w") as out_file:
             out_file.write(self.full_text)"""
 
-        self.multi_line_list.setHtml(self.full_text)
+        self.web_engine_view.setHtml(self.full_text)
 
-        right_col_layout.addWidget(self.multi_line_list)
+        right_col_layout.addWidget(self.web_engine_view,1)
 
         self.input_field = QTextEdit()
         self.input_field.setFixedHeight(60)
@@ -283,7 +303,19 @@ class MyWindow(QMainWindow):
 
         layout.addLayout(left_col_layout, 20)
         layout.addLayout(right_col_layout, 80)
-
+        
+        
+    
+    @pyqtSlot(str)
+    def write_dump(self, content):
+        file_path = "webpage.html"
+        with open(file_path, "w", encoding="utf-8") as file:
+            file.write(content)
+            print(f"HTML content saved to {file_path}")
+    
+    def dump_html(self):
+        self.web_engine_view.page().runJavaScript("document.documentElement.outerHTML;", self.write_dump)
+    
     def list_onDelete(self):
         reply = QMessageBox.question(
             self, "Confirmation", "Are you sure you want to proceed?"
@@ -326,13 +358,20 @@ class MyWindow(QMainWindow):
         ch = CodeHighlighter()
         for role, content in res.fetchall():
             if role == "user":
-                self.append_msg("group_user", content)
+                self.append_msg("group_user", content.strip())
             elif role == "assistant":
-                formatted_response = ch.process_text(content)
+                formatted_response = ch.process_text(content.strip())
                 self.append_msg("group_assistant", formatted_response)
 
         print("load_conversation", self.current_chat_gpt_id)
+        
+        current_width = self.width()
+        current_height = self.height()
+        
+        self.resize(current_width, current_height+1)
+        
 
+        
     def save(self) -> None:
         """
         Save current thread to database and add to list
@@ -371,7 +410,7 @@ class MyWindow(QMainWindow):
       
         try:
             js_code = "var body = document.body;while (body.firstChild) { body.removeChild(body.firstChild);}"
-            self.multi_line_list.page().runJavaScript(js_code)
+            self.web_engine_view.page().runJavaScript(js_code)
 
             self.current_chat_gpt_id = None
             self.reset_chat()
@@ -422,7 +461,7 @@ class MyWindow(QMainWindow):
         newDiv.innerHTML = '{formatted_response_js}';
         document.body.appendChild(newDiv);
         """
-        self.multi_line_list.page().runJavaScript(js_code)
+        self.web_engine_view.page().runJavaScript(js_code)
 
     @asyncSlot()
     async def coverstateton(self) -> None:
@@ -430,7 +469,7 @@ class MyWindow(QMainWindow):
         is_new_thread = True
         question = self.input_field.toPlainText()
         self.input_field.clear()
-        self.append_msg("group_user", question)
+        self.append_msg("group_user", question.strip())
 
         # find out is it a actual thread. If don't we will use a defaul "no name" tthread
         if self.current_chat_gpt_id is not None:
@@ -443,7 +482,7 @@ class MyWindow(QMainWindow):
             self.current_chat_gpt_id = response[0]
 
         ch = CodeHighlighter()
-        formatted_response = ch.process_text(response[1])
+        formatted_response = ch.process_text(response[1].strip())
 
         self.append_msg("group_assistant", formatted_response)
 
@@ -479,7 +518,7 @@ class MyWindow(QMainWindow):
     async def chat_with_openai(self, prompt: str, id: str = None) -> tuple:
         messages = []
         if self.system_role_content:
-            messages.append({"role": "system", "content": self.system_role_content})
+            messages.append({"role": "system", "content": str(self.system_role_content)})
 
         if id is not None:
             # In case if there are history.
@@ -512,14 +551,14 @@ class MyWindow(QMainWindow):
 
         print(formatted_response)
 
-        self.multi_line_list.page().runJavaScript(
+        self.web_engine_view.page().runJavaScript(
             f"""var newDiv = document.createElement('div');
 newDiv.className = 'group_assistant';
 newDiv.innerHTML = '{formatted_response}';
 document.body.appendChild(newDiv);"""
         )
 
-        '''self.multi_line_list.page().runJavaScript(f"""var newDiv = document.createElement('div');
+        '''self.web_engine_view.page().runJavaScript(f"""var newDiv = document.createElement('div');
         newDiv.className = 'group_user';
         newDiv.innerHTML = '{content}';
         document.body.appendChild(newDiv);""")'''
@@ -534,7 +573,7 @@ def main():
     asyncio.set_event_loop(loop)
 
     try:
-        window = MyWindow()
+        window = MyWindow(True)
     except FileNotFoundError as e:
         print(f"Error: {e}. Make sure 'config.json' exists.")
         sys.exit(1)
@@ -556,6 +595,8 @@ if __name__ == "__main__":
 https://doc.qt.io/qtforpython-6/examples/example_async_minimal.html
 https://docs.python.org/3/library/sqlite3.html
 
+Worker?
+https://stackoverflow.com/questions/72693388/update-html-content-in-qwebengineview
 
         Protocol:
         For the first interaction in a thread:

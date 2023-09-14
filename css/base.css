@@ -1,12 +1,13 @@
 body {
     /*font-family: "Helvetica", sans-serif; */
     background-color:rgb(52, 53, 65);
-    /*line-height: 150%;*/
+    text-align: justify;
+    /*line-height: 25px;*/
     display: block;
     tab-size: 4;
     /*font-size:15px;*/
     color:#fff;
-    letter-spacing: 1px; /* Adjust the value as needed */
+    /*letter-spacing: 1px; */
 }
 div {
     display: block;
@@ -14,26 +15,24 @@ div {
     padding:10px 10px 10px 30px;
     margin: 2px 0px 2px 0px;
     border: 1px ridge #fff;
-    
 }
 div.group_user {
     background-color: rgb(68,70,84);
+    line-height: 22px;
 }
 div.group_assistant {
     background-color: rgb(52,53,65);
+    line-height: 22px;
 }
-
 table,tr,td  {
     border: none; 
 }
 div.linenodiv, td.code > div  {
     border: none; 
-    
-    
 }
 div.linenodiv > div span, td.code > div span, div.source  {
-    line-height: 150%;
-    font-family: "Courier";
+    line-height: auto;
+    /*font-family: "Courier";*/
 }
 div.source, div.highlight /*div.source + div*/  {
     max-width: 100%; /* Set a maximum width for the container */
@@ -46,20 +45,18 @@ div.source, div.highlight /*div.source + div*/  {
 table.highlighttable {
     width:auto;
     max-width: 100%; 
-    font-family: "Courier";
+    /*font-family: "Courier";*/
 }
 div.lang {
     /*margin:auto auto 0px auto;*/
     /*margin-bottom:0px;*/
     margin-top:20px;
 }
-
 td.linenos {
 	display:none;
-
 }
 
-pre { line-height: 150%; }
+pre { line-height: 22px; }
 td.linenos .normal { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
 span.linenos { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
 td.linenos .special { color: #000000; background-color: #ffffc0; padding-left: 5px; padding-right: 5px; }
