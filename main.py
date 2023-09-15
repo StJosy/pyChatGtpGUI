@@ -182,7 +182,7 @@ class MyWindow(QMainWindow):
 
     def initUI(self):
         self.setWindowTitle("ChatGPT")
-        self.setGeometry(100, 100, 1024, 960)
+        self.setGeometry(200, 50, 1024, 960)
 
         self.main_widget = QWidget(self)
         self.setCentralWidget(self.main_widget)
