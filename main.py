@@ -142,7 +142,7 @@ class MyWindow(QMainWindow):
 
         self.highlighter = CodeHighlighter()
 
-        self.current_chat_gpt_id = None
+        self.current_thread_id = None
 
         # restore some things:
         #
@@ -340,19 +340,30 @@ class MyWindow(QMainWindow):
             self.deleteMenu.exec(self.list_widget.mapToGlobal(pos))
 
     def list_double_click(self, item) -> None:
-        if self.current_chat_gpt_id is not None:
+        if self.current_thread_id is not None:
             self.reset()
         self.load_conversation(item)
-
+    
+    def shove_it(self) -> None:
+        #I had a problem with the text display, but even if I resize the window just a little bit, it gets fixed.
+        current_height = self.height()
+        remainder = current_height % 10
+        if remainder == 0: 
+            current_height = current_height + 1
+        else:    
+            remainder = current_height-remainder        
+        print(f'{remainder} {remainder}')
+        self.resize(self.width(), current_height)
+        
     def load_conversation(self, item) -> None:
         res = self.cursor.execute(
-            "select id,chat_gpt_id from thread where title = ?", (item.text(),)
+            "select id from thread where title = ?", (item.text(),)
         )
 
-        id, self.current_chat_gpt_id = res.fetchone()
+        self.current_thread_id,= res.fetchone()
 
         res = self.cursor.execute(
-            "select role,content from chatlog where thread_id = ?", (id,)
+            "select role,content from chatlog where thread_id = ?", (self.current_thread_id,)
         )
 
         ch = CodeHighlighter()
@@ -363,13 +374,10 @@ class MyWindow(QMainWindow):
                 formatted_response = ch.process_text(content.strip())
                 self.append_msg("group_assistant", formatted_response)
 
-        print("load_conversation", self.current_chat_gpt_id)
+        print("load_conversation", self.current_thread_id)
         
-        #I had a problem with the text display, but even if I resize the window just a little bit, it gets fixed.
-        current_width = self.width()
-        current_height = self.height()
         
-        self.resize(current_width, current_height+1)
+        self.shove_it()
         
 
         
@@ -397,8 +405,8 @@ class MyWindow(QMainWindow):
         if reply == QMessageBox.StandardButton.Yes:
             try:
                 self.cursor.execute(
-                    "UPDATE thread SET title = ? WHERE chat_gpt_id = ?",
-                    (title, self.current_chat_gpt_id),
+                    "UPDATE thread SET title = ? WHERE id = ?",
+                    (title, self.current_thread_id),
                 )
                 self.con.commit()
             except Exception as e:
@@ -413,7 +421,7 @@ class MyWindow(QMainWindow):
             js_code = "var body = document.body;while (body.firstChild) { body.removeChild(body.firstChild);}"
             self.web_engine_view.page().runJavaScript(js_code)
 
-            self.current_chat_gpt_id = None
+            self.current_thread_id = None
             self.reset_chat()
             print("reset")
 
@@ -473,58 +481,64 @@ class MyWindow(QMainWindow):
         self.append_msg("group_user", question.strip())
 
         # find out is it a actual thread. If don't we will use a defaul "no name" tthread
-        if self.current_chat_gpt_id is not None:
-            response = await self.chat_with_openai(question, self.current_chat_gpt_id)
-            is_new_thread = False
-        else:
+        if self.current_thread_id is  None:
             response = await self.chat_with_openai(question)
             # Open a new thread
             is_new_thread = True
-            self.current_chat_gpt_id = response[0]
+            self.current_thread_id = response[0]
+        else:
+            response = await self.chat_with_openai(question)
+            is_new_thread = False
+            
 
         ch = CodeHighlighter()
         formatted_response = ch.process_text(response[1].strip())
 
         self.append_msg("group_assistant", formatted_response)
-
+        self.shove_it()
+        
         # save tp database.
 
         # check if thread exits
         res = self.cursor.execute(
-            "SELECT id FROM thread WHERE chat_gpt_id = ?", (self.current_chat_gpt_id,)
+            "SELECT id FROM thread WHERE id = ?", (self.current_thread_id,)
         )
 
         thread_id_tmp = res.fetchone()
         if thread_id_tmp:
-            thread_id = thread_id_tmp[0]
+            self.current_thread_id = thread_id_tmp[0]
         else:
             # If not thred id it's a new thread so the None
             self.cursor.execute(
-                "INSERT INTO thread VALUES(?,?,?)",
-                (None, self.current_chat_gpt_id, "current"),
+                "INSERT INTO thread VALUES(?,?)",
+                (None, "current"),
             )
             self.con.commit()
-            thread_id = self.cursor.lastrowid
+            self.current_thread_id = self.cursor.lastrowid
 
-        print(thread_id)
+        print(self.current_thread_id)
         data = [
-            (None, thread_id, "user", question),
-            (None, thread_id, "assistant", response[1]),
+            (None, self.current_thread_id, "user", question),
+            (None, self.current_thread_id, "assistant", response[1]),
         ]
         self.cursor.executemany(
             "INSERT INTO chatlog VALUES(?,CURRENT_TIMESTAMP,?, ?, ?)", data
         )
         self.con.commit()
 
-    async def chat_with_openai(self, prompt: str, id: str = None) -> tuple:
+    async def chat_with_openai(self, prompt: str) -> tuple:
         messages = []
         if self.system_role_content:
             messages.append({"role": "system", "content": str(self.system_role_content)})
 
-        if id is not None:
+        if self.current_thread_id is not None:
             # In case if there are history.
             res = self.cursor.execute(
-                "SELECT role,content FROM chatlog WHERE thread_id = ?", (id,)
+                f"""SELECT role,content FROM 
+                    chatlog 
+                    LEFT JOIN thread
+                    ON chatlog.thread_id = thread.id
+                    WHERE thread.id = ?""", (self.current_thread_id,)
             )
             additional_list_items = [
                 {"role": r, "content": c} for r, c in res.fetchall()
@@ -537,6 +551,8 @@ class MyWindow(QMainWindow):
 
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(None, self.call_openai, messages)
+        
+        print(response)
 
         return (response["id"], response["choices"][0]["message"]["content"])
 

@@ -9,7 +9,6 @@ DROP TABLE IF EXISTS "thread";
 -- Create the threads table
 CREATE TABLE "thread" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT,
-    "chat_gpt_id" TEXT,
     "title" TEXT
 );
 
