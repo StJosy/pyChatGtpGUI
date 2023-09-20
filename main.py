@@ -13,11 +13,10 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QMenu,
     QMessageBox,
-    QStyleFactory,
-    QSizePolicy
+    QSizePolicy,
 )
 from PyQt6.QtGui import QFont, QAction
-from PyQt6.QtCore import Qt, QTimer, pyqtSlot
+from PyQt6.QtCore import Qt, pyqtSlot
 import sqlite3
 from pygments import highlight
 from pygments.lexers import get_lexer_by_name
@@ -28,10 +27,8 @@ from typing import Generator
 import openai
 import asyncio
 from qasync import QEventLoop, asyncSlot
-import time
 import json
-
-
+from pprint import pprint
 
 
 class CodeHighlighter:
@@ -46,7 +43,7 @@ class CodeHighlighter:
         lang = str()
 
         """
-        What happen if reguest is incomplete? 
+        What happen if reguest is incomplete?
         """
         for line in lines:
             if line.startswith("```"):
@@ -95,7 +92,7 @@ class CodeHighlighter:
 
 
 class MyWindow(QMainWindow):
-    def __init__(self, debug: bool=False):
+    def __init__(self, debug: bool = False):
         self.cwd = Path.cwd()
         self.debug = debug
         super().__init__()
@@ -137,8 +134,6 @@ class MyWindow(QMainWindow):
                 raise Exception(
                     f"Missing key(s) {list(set(config_content.keys()) & set(expected_keys))}"
                 )
-
-            print(self.chatGPT_setting)
 
         self.highlighter = CodeHighlighter()
 
@@ -189,8 +184,6 @@ class MyWindow(QMainWindow):
         sansFont = QFont("Helvetica", 12)
 
         self.main_widget.setFont(sansFont)
-        
-        
 
         layout = QHBoxLayout()
         self.main_widget.setLayout(layout)
@@ -249,7 +242,7 @@ class MyWindow(QMainWindow):
         inline_layout.addWidget(reset_button)
 
         inline_layout.addSpacing(10)
-        
+
         if self.debug:
             dump_button = QPushButton("Dump")
             dump_button.clicked.connect(self.dump_html)
@@ -264,15 +257,13 @@ class MyWindow(QMainWindow):
         right_col_layout.addLayout(inline_layout)
         self.web_engine_view = QWebEngineView()
         self.web_engine_view.setFont(sansFont)
-        self.web_engine_view.setZoomFactor(1.0) 
-        
-        self.web_engine_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-      
-       
-        
+        self.web_engine_view.setZoomFactor(1.0)
+
+        self.web_engine_view.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+
         self.web_engine_view.page().profile().clearHttpCache()
-        
-        
 
         template = Path(self.cwd, "templates", "base.html").read_text()
         css = Path(self.cwd, "css", "base.css").read_text()
@@ -289,7 +280,7 @@ class MyWindow(QMainWindow):
 
         self.web_engine_view.setHtml(self.full_text)
 
-        right_col_layout.addWidget(self.web_engine_view,1)
+        right_col_layout.addWidget(self.web_engine_view, 1)
 
         self.input_field = QTextEdit()
         self.input_field.setFixedHeight(60)
@@ -303,24 +294,24 @@ class MyWindow(QMainWindow):
 
         layout.addLayout(left_col_layout, 20)
         layout.addLayout(right_col_layout, 80)
-        
-        
-    
+
     @pyqtSlot(str)
     def write_dump(self, content):
         file_path = "webpage.html"
         with open(file_path, "w", encoding="utf-8") as file:
             file.write(content)
             print(f"HTML content saved to {file_path}")
-    
+
     def dump_html(self):
-        self.web_engine_view.page().runJavaScript("document.documentElement.outerHTML;", self.write_dump)
-    
+        self.web_engine_view.page().runJavaScript(
+            "document.documentElement.outerHTML;", self.write_dump
+        )
+
     def list_onDelete(self):
         reply = QMessageBox.question(
             self, "Confirmation", "Are you sure you want to proceed?"
         )
-        
+
         if reply == QMessageBox.StandardButton.Yes:
             selectedItems = self.list_widget.selectedItems()
 
@@ -343,27 +334,28 @@ class MyWindow(QMainWindow):
         if self.current_thread_id is not None:
             self.reset()
         self.load_conversation(item)
-    
+
     def shove_it(self) -> None:
-        #I had a problem with the text display, but even if I resize the window just a little bit, it gets fixed.
+        # I had a problem with the text display, but even if I resize the window just a little bit, it gets fixed.
         current_height = self.height()
         remainder = current_height % 10
-        if remainder == 0: 
+        if remainder == 0:
             current_height = current_height + 1
-        else:    
-            remainder = current_height-remainder        
-        print(f'{remainder} {remainder}')
+        else:
+            remainder = current_height - remainder
+
         self.resize(self.width(), current_height)
-        
+
     def load_conversation(self, item) -> None:
         res = self.cursor.execute(
             "select id from thread where title = ?", (item.text(),)
         )
 
-        self.current_thread_id,= res.fetchone()
+        (self.current_thread_id,) = res.fetchone()
 
         res = self.cursor.execute(
-            "select role,content from chatlog where thread_id = ?", (self.current_thread_id,)
+            "select role,content from chatlog where thread_id = ?",
+            (self.current_thread_id,),
         )
 
         ch = CodeHighlighter()
@@ -374,13 +366,8 @@ class MyWindow(QMainWindow):
                 formatted_response = ch.process_text(content.strip())
                 self.append_msg("group_assistant", formatted_response)
 
-        print("load_conversation", self.current_thread_id)
-        
-        
         self.shove_it()
-        
 
-        
     def save(self) -> None:
         """
         Save current thread to database and add to list
@@ -416,7 +403,6 @@ class MyWindow(QMainWindow):
             self.list_widget.addItem(title)
 
     def reset(self) -> None:
-      
         try:
             js_code = "var body = document.body;while (body.firstChild) { body.removeChild(body.firstChild);}"
             self.web_engine_view.page().runJavaScript(js_code)
@@ -441,7 +427,6 @@ class MyWindow(QMainWindow):
             self.con.commit()
             thread_id_tmp = res.fetchone()
             if thread_id_tmp:
-                print(thread_id_tmp[0])
                 self.cursor.execute(
                     "DELETE FROM chatlog WHERE thread_id = ? ", (thread_id_tmp[0],)
                 )
@@ -475,28 +460,24 @@ class MyWindow(QMainWindow):
     @asyncSlot()
     async def coverstateton(self) -> None:
         """_summary_"""
-        is_new_thread = True
         question = self.input_field.toPlainText()
         self.input_field.clear()
         self.append_msg("group_user", question.strip())
 
         # find out is it a actual thread. If don't we will use a defaul "no name" tthread
-        if self.current_thread_id is  None:
+        if self.current_thread_id is None:
             response = await self.chat_with_openai(question)
             # Open a new thread
-            is_new_thread = True
             self.current_thread_id = response[0]
         else:
             response = await self.chat_with_openai(question)
-            is_new_thread = False
-            
 
         ch = CodeHighlighter()
         formatted_response = ch.process_text(response[1].strip())
 
         self.append_msg("group_assistant", formatted_response)
         self.shove_it()
-        
+
         # save tp database.
 
         # check if thread exits
@@ -516,7 +497,6 @@ class MyWindow(QMainWindow):
             self.con.commit()
             self.current_thread_id = self.cursor.lastrowid
 
-        print(self.current_thread_id)
         data = [
             (None, self.current_thread_id, "user", question),
             (None, self.current_thread_id, "assistant", response[1]),
@@ -529,16 +509,19 @@ class MyWindow(QMainWindow):
     async def chat_with_openai(self, prompt: str) -> tuple:
         messages = []
         if self.system_role_content:
-            messages.append({"role": "system", "content": str(self.system_role_content)})
+            messages.append(
+                {"role": "system", "content": str(self.system_role_content)}
+            )
 
         if self.current_thread_id is not None:
             # In case if there are history.
             res = self.cursor.execute(
-                f"""SELECT role,content FROM 
-                    chatlog 
+                """SELECT role,content FROM
+                    chatlog
                     LEFT JOIN thread
                     ON chatlog.thread_id = thread.id
-                    WHERE thread.id = ?""", (self.current_thread_id,)
+                    WHERE thread.id = ?""",
+                (self.current_thread_id,),
             )
             additional_list_items = [
                 {"role": r, "content": c} for r, c in res.fetchall()
@@ -547,38 +530,20 @@ class MyWindow(QMainWindow):
 
         messages.append({"role": "user", "content": prompt})
 
-        print(messages)
+        # print(messages)
 
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(None, self.call_openai, messages)
-        
-        print(response)
+
+        pprint(response)
 
         return (response["id"], response["choices"][0]["message"]["content"])
 
     def call_openai(self, messages):
         setting = self.chatGPT_setting.copy()
         setting["messages"] = messages
-
+        pprint(setting)
         return openai.ChatCompletion.create(**setting)
-
-    def _coverstateton(self):
-        ch = CodeHighlighter()
-        formatted_response = ch.process_text(api_response)
-
-        print(formatted_response)
-
-        self.web_engine_view.page().runJavaScript(
-            f"""var newDiv = document.createElement('div');
-newDiv.className = 'group_assistant';
-newDiv.innerHTML = '{formatted_response}';
-document.body.appendChild(newDiv);"""
-        )
-
-        '''self.web_engine_view.page().runJavaScript(f"""var newDiv = document.createElement('div');
-        newDiv.className = 'group_user';
-        newDiv.innerHTML = '{content}';
-        document.body.appendChild(newDiv);""")'''
 
 
 def main():
@@ -590,7 +555,7 @@ def main():
     asyncio.set_event_loop(loop)
 
     try:
-        window = MyWindow(True)
+        window = MyWindow(False)
     except FileNotFoundError as e:
         print(f"Error: {e}. Make sure 'config.json' exists.")
         sys.exit(1)
