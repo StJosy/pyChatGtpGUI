@@ -37,7 +37,7 @@ This project is a PyQt6-based chat application integrated with OpenAI's GPT mode
 ```
 **Installation**:
 ```bash
-pip install PyQt6 pygments openai qasync PyQtWebEngine
+pip install PyQt6 pygments openai qasync PyQt6-WebEngine
 ```
 
 **Run**:
